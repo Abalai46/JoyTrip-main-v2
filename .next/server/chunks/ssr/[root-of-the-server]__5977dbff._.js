@@ -396,19 +396,48 @@ const sendMessageToN8n = async (message)=>{
         const contentType = response.headers.get('content-type');
         console.log('Response content type:', contentType);
         let data;
-        // ถ้าเป็น JSON ให้แปลงเป็น object
-        if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-        } else {
-            const textData = await response.text();
-            console.log('Text data received:', textData);
-            // ลองแปลงเป็น JSON ถ้าทำได้
-            try {
-                data = JSON.parse(textData);
-            } catch (e) {
-                // ถ้าแปลงไม่ได้ ให้ใช้เป็นข้อความโดยตรง
-                data = textData;
+        try {
+            // ถ้าเป็น JSON ให้แปลงเป็น object
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    console.error('JSON parsing error:', jsonError);
+                    // ถ้า JSON ไม่ถูกต้อง ให้ลองอ่านเป็นข้อความแทน
+                    const textResponse = await response.clone().text();
+                    console.log('Raw response text:', textResponse);
+                    // ใช้ข้อความโดยตรงถ้ามี
+                    if (textResponse && textResponse.trim()) {
+                        data = textResponse;
+                    } else {
+                        data = {
+                            text: 'ไม่มีคำตอบจากเซิร์ฟเวอร์ โปรดลองอีกครั้งภายหลัง'
+                        };
+                    }
+                }
+            } else {
+                const textData = await response.text();
+                console.log('Text data received:', textData);
+                // ถ้าไม่มีข้อความ
+                if (!textData || textData.trim() === '') {
+                    data = {
+                        text: 'ไม่มีคำตอบจากเซิร์ฟเวอร์ กรุณาลองอีกครั้ง'
+                    };
+                } else {
+                    // ลองแปลงเป็น JSON ถ้าทำได้
+                    try {
+                        data = JSON.parse(textData);
+                    } catch (e) {
+                        // ถ้าแปลงไม่ได้ ให้ใช้เป็นข้อความโดยตรง
+                        data = textData;
+                    }
+                }
             }
+        } catch (error) {
+            console.error('Error processing response:', error);
+            data = {
+                text: 'เกิดข้อผิดพลาดในการประมวลผลคำตอบ'
+            };
         }
         console.log('Data received from n8n:', data);
         // ตรวจสอบรูปแบบข้อมูลและแก้ไขให้ตรงกับที่แอพต้องการ
